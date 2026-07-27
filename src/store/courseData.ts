@@ -3,7 +3,12 @@ import { videoById } from '../data/videosFixture';
 import { buildTree } from '../domain/buildTree';
 import { flatten } from '../domain/flatten';
 import { nest } from '../domain/nest';
-import { nextVideoLesson, prevVideoLesson, videoLessons } from '../domain/sequence';
+import {
+  itemsToUnlockAfter,
+  nextVideoLesson,
+  prevVideoLesson,
+  videoLessons,
+} from '../domain/sequence';
 import type {
   Course,
   CourseworkItem,
@@ -73,6 +78,12 @@ export function nextPlayableAfter(item: CourseworkItem): CourseworkItem | null {
 export function prevPlayableBefore(item: CourseworkItem): CourseworkItem | null {
   const data = courseDataFor(item.space_id);
   return data ? prevVideoLesson(data.flat, item.id) : null;
+}
+
+/** What completing `item` releases — see `itemsToUnlockAfter`. */
+export function unlockablesAfter(item: CourseworkItem): CourseworkItem[] {
+  const data = courseDataFor(item.space_id);
+  return data ? itemsToUnlockAfter(data.flat, item.id) : [];
 }
 
 export function videoForLesson(item: CourseworkItem) {

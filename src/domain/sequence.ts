@@ -50,3 +50,33 @@ export function prevVideoLesson(
   if (index <= 0) return null;
   return playable[index - 1] ?? null;
 }
+
+/**
+ * Everything that finishing `lessonId` should unlock: each item in depth-first
+ * order after it, up to and including the next playable lesson.
+ *
+ * Deliberately walks the full sequence rather than the playback chain. Sections
+ * and quizzes sit in the table of contents but never enter the chain, so
+ * unlocking only what plays next leaves them gated permanently — a quiz that can
+ * never be opened, no matter how much of the course is finished.
+ *
+ * Stopping *after* the next playable lesson is what keeps this from unlocking the
+ * rest of the course: it hands over one more thing to watch, plus whatever
+ * non-playable items stand between here and there. Those items are released
+ * rather than waited on because this prototype has no way to complete a quiz, and
+ * gating playback behind one would strand every lesson past it.
+ */
+export function itemsToUnlockAfter(
+  flatSequence: CourseworkItem[],
+  lessonId: number,
+): CourseworkItem[] {
+  const index = flatSequence.findIndex((item) => item.id === lessonId);
+  if (index === -1) return [];
+
+  const unlockable: CourseworkItem[] = [];
+  for (const item of flatSequence.slice(index + 1)) {
+    unlockable.push(item);
+    if (isVideoLesson(item)) break;
+  }
+  return unlockable;
+}

@@ -3,7 +3,12 @@ import { courseworkItems } from '../../data/courseworkFixture';
 import { buildTree } from '../buildTree';
 import { flatten } from '../flatten';
 import { nest } from '../nest';
-import { nextVideoLesson, prevVideoLesson, videoLessons } from '../sequence';
+import {
+  itemsToUnlockAfter,
+  nextVideoLesson,
+  prevVideoLesson,
+  videoLessons,
+} from '../sequence';
 import type { CourseworkItem, NestedCoursework } from '../../types/coursework';
 
 const ids = (items: CourseworkItem[]) => items.map((item) => item.id);
@@ -108,5 +113,42 @@ describe('prevVideoLesson', () => {
 
   it('returns null at the start of the course', () => {
     expect(prevVideoLesson(flatFor(101), 1002)).toBeNull();
+  });
+});
+
+describe('itemsToUnlockAfter', () => {
+  it('releases the quiz as well as the lesson past it', () => {
+    // The case that was broken: the quiz is in nothing's playback chain, so
+    // unlocking only the next playable lesson left it locked for the whole course.
+    expect(ids(itemsToUnlockAfter(flatFor(101), 1007))).toEqual([1008, 1009]);
+  });
+
+  it('releases the section heading it has to cross', () => {
+    expect(ids(itemsToUnlockAfter(flatFor(101), 1005))).toEqual([1006, 1007]);
+  });
+
+  it('stops at the next playable lesson rather than opening the rest', () => {
+    expect(ids(itemsToUnlockAfter(flatFor(101), 1002))).toEqual([1003, 1004]);
+  });
+
+  it('releases nothing at the end of the course', () => {
+    expect(itemsToUnlockAfter(flatFor(101), 1009)).toEqual([]);
+  });
+
+  it('releases exactly one lesson at a time in a course without sections', () => {
+    expect(ids(itemsToUnlockAfter(flatFor(102), 2002))).toEqual([2003]);
+  });
+
+  it('returns nothing for an item outside the sequence', () => {
+    expect(itemsToUnlockAfter(flatFor(101), 1010)).toEqual([]);
+  });
+
+  it('leaves nothing locked once every video lesson is completed', () => {
+    const flat = flatFor(101);
+    const unlocked = new Set([1001, 1002, 1003, 1004, 1005]); // the seeded state
+    videoLessons(flat).forEach((lesson) =>
+      itemsToUnlockAfter(flat, lesson.id).forEach((item) => unlocked.add(item.id)),
+    );
+    expect(ids(flat).filter((id) => !unlocked.has(id))).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import {
   itemById,
   nextPlayableAfter,
   prevPlayableBefore,
+  unlockablesAfter,
   videoForLesson,
 } from '../store/courseData';
 import { progressStore } from '../store/progressStore';
@@ -44,8 +45,12 @@ controller.configure({
     if (lesson.trigger_complete_video_id !== null) {
       videoPositionStore.clear(lesson.id, lesson.trigger_complete_video_id);
     }
-    const next = nextPlayableAfter(lesson);
-    if (next) progressStore.unlock(next.space_id, next.id);
+    // Unlocks the next playable lesson *and* any section or quiz standing between
+    // here and it. Unlocking only what plays next would leave those gated forever,
+    // since nothing in the playback chain ever points at them.
+    unlockablesAfter(lesson).forEach((item) =>
+      progressStore.unlock(item.space_id, item.id),
+    );
   },
   resumePositionFor: (lessonId, videoId) => videoPositionStore.get(lessonId, videoId),
   savePosition: (lessonId, videoId, seconds) =>
