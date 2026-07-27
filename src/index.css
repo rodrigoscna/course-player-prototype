@@ -423,151 +423,176 @@ h2 {
 }
 
 /*
- * The custom floating player. Fixed to the viewport so it survives every route
- * change, and laid out as a grid so the same markup serves both design states:
- * the large state stacks stage over chrome, the small state puts them in a row.
+ * The custom floating player, laid out to the Native Media Player designs
+ * (Figma 375-3589 small, 375-3590 large).
+ *
+ * Two variants, selected by the content rather than by the user. Tall is the only
+ * one that carries a picture, and so the only one that holds the player element;
+ * short is chrome alone, which is how it can sit on a lesson page that is already
+ * showing the video inline. Both are the same three-cell grid — media, meta,
+ * controls — reordered rather than rebuilt.
  */
 .floating-player {
+  /*
+   * The design's semantic tokens. Values approximate the Figma variables closely
+   * enough to review the layout; swap them for the real design-system values
+   * before any of this leaves the prototype.
+   */
+  --fp-fill: #ffffff;
+  --fp-fill-secondary: #e8e8e8;
+  --fp-text-primary: #1a1a1a;
+  --fp-text-tertiary: #757575;
+  --fp-icon: #1a1a1a;
+  --fp-radius: 16px;
+  --fp-radius-small: 8px;
+  --fp-space-100: 8px;
+  --fp-space-200: 16px;
+
   position: fixed;
   right: var(--space-5);
   bottom: var(--space-5);
   z-index: 20;
+  width: 400px;
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--surface);
+  overflow: hidden;
+  border-radius: var(--fp-radius);
+  background: var(--fp-fill);
   box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
 }
 
-.floating-player.large {
+/* Tall — 400 x 273: a 16:9 media area, then the 48px bar. */
+.floating-player.tall {
   grid-template-areas:
-    'stage stage'
-    'body actions';
+    'media media'
+    'meta controls';
   grid-template-columns: minmax(0, 1fr) auto;
-  width: 360px;
-}
-
-.floating-player.small {
-  grid-template-areas: 'stage body actions';
-  grid-template-columns: 96px minmax(0, 1fr) auto;
   align-items: center;
-  width: 340px;
 }
 
-.floating-stage {
-  grid-area: stage;
+/* Short — 400 x 48: the bar alone, with a cover where the picture would be. */
+.floating-player.short {
+  grid-template-areas: 'media meta controls';
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--fp-space-100) var(--fp-space-200);
+  gap: var(--fp-space-200);
+}
+
+.fp-media {
+  grid-area: media;
   position: relative;
   overflow: hidden;
-  border-radius: calc(var(--radius) - 2px);
-  background: #000;
+  background: var(--fp-fill-secondary);
 }
-.floating-player.small .floating-stage {
-  width: 96px;
-  height: 54px;
+
+.floating-player.tall .fp-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.floating-player.short .fp-media {
+  height: 32px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--fp-radius-small);
 }
 
 /*
- * Covers the picture for audio-first content without hiding the element: a
- * display:none video is one the browser may stop decoding altogether.
+ * video.js fluid mode sizes itself with padding-top, which fights a fixed box.
+ * Overriding it here lets the same element fill a 16:9 stage and a 32px cover.
  */
-.floating-audio-cover {
+.fp-media .player-slot,
+.fp-media .video-js,
+.fp-media .video-js.vjs-fluid {
+  width: 100%;
+  height: 100%;
+  padding-top: 0;
+}
+.fp-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Stands in for the picture in the short bar, which holds no video element. */
+.fp-cover {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  background: var(--surface-raised);
-  color: var(--accent);
-  font-size: 1.2rem;
+  background: var(--fp-fill-secondary);
+  color: var(--fp-text-tertiary);
+  font-size: 1rem;
 }
 
-.floating-body {
-  grid-area: body;
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.floating-meta {
+.fp-meta {
+  grid-area: meta;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   min-width: 0;
 }
-.floating-title,
-.floating-course {
+.floating-player.tall .fp-meta {
+  padding: var(--fp-space-100) 0 var(--fp-space-100) var(--fp-space-200);
+}
+
+.fp-title,
+.fp-space {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.floating-title {
-  font-size: 0.85rem;
+/*
+ * Line heights are fixed rather than proportional so the two lines total exactly
+ * the 32px the design gives the bar's content. With `1.2` they came to 33.6 and
+ * pushed the card to 275 instead of 273.
+ */
+.fp-title {
+  font-size: 15px;
   font-weight: 600;
-  color: var(--text);
+  line-height: 18px;
+  color: var(--fp-text-primary);
 }
-.floating-course {
-  font-size: 0.7rem;
-  color: var(--text-dim);
+.fp-title:hover {
+  text-decoration: underline;
+}
+.fp-space {
+  font-size: 13px;
+  line-height: 14px;
+  color: var(--fp-text-tertiary);
 }
 
-.floating-transport {
+.fp-controls {
+  grid-area: controls;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--fp-space-100);
+}
+.floating-player.tall .fp-controls {
+  padding: var(--fp-space-100) var(--fp-space-200) var(--fp-space-100) 0;
 }
 
-.floating-time {
-  margin-left: auto;
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
-}
-
-.floating-actions {
-  grid-area: actions;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-1);
-}
-
-.floating-button {
-  font: inherit;
-  font-size: 0.8rem;
-  line-height: 1;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius);
-  cursor: pointer;
-  color: var(--text);
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-}
-.floating-button.primary {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-}
-.floating-button:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.floating-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Our own progress bar, since video.js is drawing nothing in this state. */
-.floating-seek {
-  width: 100%;
-  height: 4px;
-  margin: 0;
-  accent-color: var(--accent);
+.fp-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--fp-icon);
   cursor: pointer;
 }
-.floating-player.small .floating-seek {
-  display: none;
+.fp-button svg {
+  width: 20px;
+  height: 20px;
+}
+.fp-button:hover {
+  background: var(--fp-fill-secondary);
 }
 
 @media (max-width: 620px) {
-  .floating-player.large,
-  .floating-player.small {
+  .floating-player {
     right: var(--space-3);
     bottom: var(--space-3);
     left: var(--space-3);

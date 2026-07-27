@@ -44,7 +44,7 @@ export function DebugPanel() {
         </span>
         <span>
           float mode: <strong>{snapshot.floatMode}</strong>
-          {snapshot.dock === 'floating' && ` / ${snapshot.floatingSize}`}
+          {snapshot.floatingVisible && ` / ${snapshot.floatingVariant} bar`}
         </span>
         {/* The headless question, answered on screen rather than in prose. */}
         <span>

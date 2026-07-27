@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   decideAdvanceTarget,
   decideDock,
-  decideFloatingSize,
+  decideFloatingVariant,
+  decideFloatingVisible,
   type AdvanceMode,
 } from '../dockPolicy';
 
@@ -18,7 +19,8 @@ const dock = (over: Partial<DockInput> = {}) =>
     routeLessonId: 1005,
     playingLessonId: 1002,
     isPlaying: true,
-    hasPlayed: true,
+    awaitingPlayback: false,
+    isAudioOnly: false,
     floatMode: 'native-pip',
     floatingDismissed: false,
     ...over,
@@ -57,18 +59,18 @@ describe('decideDock', () => {
       expect(custom()).toBe('floating');
     });
 
-    it('keeps floating while paused, because our chrome can resume it', () => {
-      expect(custom({ isPlaying: false })).toBe('floating');
+    it('parks when paused, because a stopped card is showing nothing', () => {
+      expect(custom({ isPlaying: false })).toBe('parked');
     });
 
-    it('holds the container across a boundary that has no started source yet', () => {
-      // An advance sets a new source before it plays. Gating on the per-source
-      // started flag here would tear the container down at every boundary.
-      expect(custom({ isPlaying: false, hasPlayed: true })).toBe('floating');
+    it('parks audio rather than moving the element into a covered box', () => {
+      expect(custom({ isAudioOnly: true })).toBe('parked');
     });
 
-    it('stays parked until something has actually played', () => {
-      expect(custom({ isPlaying: false, hasPlayed: false })).toBe('parked');
+    it('holds the container across a boundary that has not started playing yet', () => {
+      // An advance sets a new source before it plays. Parking in that gap would
+      // tear the container down and rebuild it at every lesson boundary.
+      expect(custom({ isPlaying: false, awaitingPlayback: true })).toBe('floating');
     });
 
     it('parks once the user closes it', () => {
@@ -81,18 +83,54 @@ describe('decideDock', () => {
   });
 });
 
-describe('decideFloatingSize', () => {
-  it('uses the large state for a video you are not looking at', () => {
-    expect(decideFloatingSize({ isAudioOnly: false, collapsed: false })).toBe('large');
+describe('decideFloatingVariant', () => {
+  it('is tall for video on a page you are not looking at', () => {
+    expect(decideFloatingVariant({ onMediaPage: false, isAudioOnly: false })).toBe('tall');
   });
 
-  it('shrinks when the user collapses it', () => {
-    expect(decideFloatingSize({ isAudioOnly: false, collapsed: true })).toBe('small');
+  it('is short on the media its own page, where the video is already inline', () => {
+    expect(decideFloatingVariant({ onMediaPage: true, isAudioOnly: false })).toBe('short');
   });
 
-  it('stays small for audio-only content, which has no picture to show', () => {
-    expect(decideFloatingSize({ isAudioOnly: true, collapsed: false })).toBe('small');
-    expect(decideFloatingSize({ isAudioOnly: true, collapsed: true })).toBe('small');
+  it('is short for audio, which has no picture either way', () => {
+    expect(decideFloatingVariant({ onMediaPage: false, isAudioOnly: true })).toBe('short');
+    expect(decideFloatingVariant({ onMediaPage: true, isAudioOnly: true })).toBe('short');
+  });
+});
+
+describe('decideFloatingVisible', () => {
+  const visible = (over = {}) =>
+    decideFloatingVisible({
+      playingLessonId: 1002,
+      isPlaying: true,
+      awaitingPlayback: false,
+      floatMode: 'custom',
+      floatingDismissed: false,
+      ...over,
+    });
+
+  it('shows while something is playing', () => {
+    expect(visible()).toBe(true);
+  });
+
+  it('shows across a boundary that has not started playing yet', () => {
+    expect(visible({ isPlaying: false, awaitingPlayback: true })).toBe(true);
+  });
+
+  it('hides when nothing is playing', () => {
+    expect(visible({ isPlaying: false })).toBe(false);
+  });
+
+  it('hides with nothing loaded', () => {
+    expect(visible({ playingLessonId: null })).toBe(false);
+  });
+
+  it('hides once closed', () => {
+    expect(visible({ floatingDismissed: true })).toBe(false);
+  });
+
+  it('hides in native mode, where the browser draws its own window', () => {
+    expect(visible({ floatMode: 'native-pip' })).toBe(false);
   });
 });
 

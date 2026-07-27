@@ -63,7 +63,7 @@ export function LessonPage() {
         </div>
       ) : ownsPlayer ? (
         <div className="player-frame">
-          <PlayerSlot />
+          <PlayerSlot dock="inline" />
           {snapshot.autoplayBlocked && <AutoplayBlockedOverlay />}
           <span className="lesson-badge" data-lesson-id={lesson.id}>
             lesson {lesson.id}

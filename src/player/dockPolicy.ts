@@ -32,8 +32,15 @@ export type FloatMode =
   /** `requestPictureInPicture()`, with the browser's own window and chrome. */
   | 'native-pip';
 
-/** The two floating states the design calls for. */
-export type FloatingSize = 'small' | 'large';
+/**
+ * The two floating players the design calls for.
+ *
+ * Not a size the user picks — the content decides. `tall` is the only one that
+ * carries a picture, and so the only one that holds the player element; `short`
+ * is chrome alone, which is what lets it sit alongside a lesson page that is
+ * already showing the video inline.
+ */
+export type FloatingVariant = 'short' | 'tall';
 
 export type AdvanceMode = 'keep-route' | 'follow' | 'stop';
 
@@ -44,7 +51,8 @@ export function decideDock({
   routeLessonId,
   playingLessonId,
   isPlaying,
-  hasPlayed,
+  awaitingPlayback,
+  isAudioOnly,
   floatMode,
   floatingDismissed,
 }: {
@@ -52,12 +60,17 @@ export function decideDock({
   playingLessonId: number | null;
   isPlaying: boolean;
   /**
-   * Whether playback has begun at any point this session. Deliberately not
-   * per-source: an advance briefly has no started source, and gating the
-   * container on that would tear it down and rebuild it at every lesson
-   * boundary — the one moment continuity is being measured.
+   * A source has been asked to play and has not started yet — the gap an advance
+   * opens at every lesson boundary, where the old clip has ended and the new one
+   * is still loading.
+   *
+   * Counted as playing on purpose. Without it the container would be torn down
+   * and rebuilt at each boundary, which is both a visible flicker and the one
+   * moment this prototype exists to measure.
    */
-  hasPlayed: boolean;
+  awaitingPlayback: boolean;
+  /** Audio-first media, which the short bar covers rather than shows. */
+  isAudioOnly: boolean;
   floatMode: FloatMode;
   /** The user closed the floating player, which outranks every rule below. */
   floatingDismissed: boolean;
@@ -67,40 +80,63 @@ export function decideDock({
   if (routeLessonId === playingLessonId) return 'inline';
   if (floatingDismissed) return 'parked';
 
-  // Reading something else: keep the video watchable rather than yanking it off
-  // screen. Where it goes is the one real difference between the two modes.
-  if (floatMode === 'custom') {
-    // A container we own carries its own controls, so it stays useful while
-    // paused — you can resume from it. Native picture-in-picture cannot: the
-    // browser only grants that window around active playback.
-    return hasPlayed ? 'floating' : 'parked';
-  }
-  if (isPlaying) return 'pip';
-  // Nothing is playing, so there is nothing to keep watching.
-  return 'parked';
+  // Nothing playing means nothing to float: a card sitting there stopped is not
+  // showing anything, it is just in the way. Both modes agree on that, and differ
+  // only in where playback goes when there is some.
+  if (!isPlaying && !awaitingPlayback) return 'parked';
+
+  if (floatMode !== 'custom') return 'pip';
+
+  // Only the tall card carries a picture, so only it needs the element. Audio
+  // keeps playing from the offscreen holder while the short bar shows its cover —
+  // moving the element into a box that covers it would buy nothing.
+  return isAudioOnly ? 'parked' : 'floating';
 }
 
 /**
- * Which floating state to show, from the design's two.
+ * Whether the floating player's chrome belongs on screen.
  *
- * Small is for when there is nothing to watch — audio-first content, or a video
- * the user has deliberately shrunk. Large is for a video belonging to a lesson
- * they are not looking at, which is the case that needs a picture at all.
- *
- * The design also lists the current lesson's own header media as a small-state
- * case. That one cannot arise here: while you are on the playing lesson the dock
- * is `inline`, so reaching it would need scroll tracking that this prototype
- * does not do. The collapse button covers the same state on demand.
+ * Deliberately separate from `decideDock`. Where the element lives and whether the
+ * controls are visible stopped being the same question once the short bar had to
+ * appear on a page that is already showing the video inline: there the element is
+ * docked `inline` and the bar is on screen at the same time.
  */
-export function decideFloatingSize({
-  isAudioOnly,
-  collapsed,
+export function decideFloatingVisible({
+  playingLessonId,
+  isPlaying,
+  awaitingPlayback,
+  floatMode,
+  floatingDismissed,
 }: {
+  playingLessonId: number | null;
+  isPlaying: boolean;
+  awaitingPlayback: boolean;
+  floatMode: FloatMode;
+  floatingDismissed: boolean;
+}): boolean {
+  if (playingLessonId === null) return false;
+  // Native mode has the browser's own window; ours would be a second player.
+  if (floatMode !== 'custom') return false;
+  if (floatingDismissed) return false;
+  return isPlaying || awaitingPlayback;
+}
+
+/**
+ * Which of the design's two floating players to show.
+ *
+ * Tall is for the one case that needs a picture: video belonging to a lesson the
+ * reader is not looking at. Everything else is short — audio has no picture, and
+ * on the lesson's own page the picture is already there, inline.
+ */
+export function decideFloatingVariant({
+  onMediaPage,
+  isAudioOnly,
+}: {
+  /** Whether the open page is the one whose media is playing. */
+  onMediaPage: boolean;
   isAudioOnly: boolean;
-  collapsed: boolean;
-}): FloatingSize {
-  if (isAudioOnly) return 'small';
-  return collapsed ? 'small' : 'large';
+}): FloatingVariant {
+  return onMediaPage || isAudioOnly ? 'short' : 'tall';
 }
 
 export function decideAdvanceTarget({

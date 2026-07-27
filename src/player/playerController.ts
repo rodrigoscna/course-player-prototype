@@ -2,10 +2,11 @@ import type { Course, CourseworkItem, VideoRecord } from '../types/coursework';
 import {
   decideAdvanceTarget,
   decideDock,
-  decideFloatingSize,
+  decideFloatingVariant,
+  decideFloatingVisible,
   type AdvanceMode,
   type DockTarget,
-  type FloatingSize,
+  type FloatingVariant,
   type FloatMode,
 } from './dockPolicy';
 import { navigateTo } from './navigation';
@@ -36,10 +37,13 @@ export interface PlayerSnapshot {
   pipRefused: boolean;
   /** Which floating approach is in effect. */
   floatMode: FloatMode;
-  /** Which of the design's two floating states is showing. */
-  floatingSize: FloatingSize;
-  /** Whether the user has shrunk the floating player by hand. */
-  collapsed: boolean;
+  /** Which of the design's two floating players is showing. */
+  floatingVariant: FloatingVariant;
+  /**
+   * Whether the floating chrome is on screen. Not the same as `dock === 'floating'`:
+   * the short bar shows while the element is docked inline or parked.
+   */
+  floatingVisible: boolean;
   /** The floating player was closed, so nothing floats until playback restarts. */
   floatingDismissed: boolean;
   /**
@@ -47,8 +51,8 @@ export interface PlayerSnapshot {
    * entirely through its API. The headless claim, in one boolean.
    */
   headless: boolean;
-  /** Playback has begun at least once this session. */
-  hasPlayed: boolean;
+  /** A source has been asked to play and has not started yet. */
+  awaitingPlayback: boolean;
   /** Position and effective end, for chrome we draw ourselves. */
   positionSeconds: number;
   durationSeconds: number;
@@ -82,11 +86,11 @@ const state: PlayerSnapshot = {
   // The custom container is the default because it is the approach under
   // evaluation; the selector in the header switches to native for comparison.
   floatMode: 'custom',
-  floatingSize: 'large',
-  collapsed: false,
+  floatingVariant: 'tall',
+  floatingVisible: false,
   floatingDismissed: false,
   headless: false,
-  hasPlayed: false,
+  awaitingPlayback: false,
   positionSeconds: 0,
   durationSeconds: 0,
 };
@@ -156,12 +160,6 @@ export const controller = {
     void applyDock();
   },
 
-  /** Shrink or grow the floating player between the design's two states. */
-  toggleCollapsed(): void {
-    state.collapsed = !state.collapsed;
-    void applyDock();
-  },
-
   /**
    * Close the floating player.
    *
@@ -172,7 +170,7 @@ export const controller = {
   dismissFloating(): void {
     getPlayer().player.pause();
     state.floatingDismissed = true;
-    state.collapsed = false;
+    state.awaitingPlayback = false;
     void applyDock();
   },
 
@@ -197,6 +195,17 @@ export const controller = {
     if (!video) return;
     state.pendingNext = false;
     setLesson(prev, video, { autoplay: true });
+  },
+
+  /**
+   * Jump back a fixed amount. The design puts a 30-second rewind where a
+   * previous-lesson button would otherwise go, which suits a listener who missed
+   * a sentence better than one who wants a different lesson.
+   */
+  rewind(seconds: number): void {
+    const { player } = getPlayer();
+    const now = player.currentTime() ?? 0;
+    player.currentTime(Math.max(0, now - seconds));
   },
 
   /** Seek from a progress bar we draw ourselves. */
@@ -292,6 +301,8 @@ function setLesson(
   state.floatingDismissed = false;
   state.positionSeconds = 0;
   state.durationSeconds = 0;
+  // Armed before the source is set so the boundary is covered from the start.
+  state.awaitingPlayback = autoplay;
 
   player.src({ src: video.url, type: video.type });
 
@@ -342,20 +353,30 @@ function applyPlayerChrome(target: DockTarget): void {
  * cases are a slot claiming the element itself.
  */
 async function applyDock(): Promise<void> {
+  const isAudioOnly = currentVideo()?.audio_only === true;
+
   const target = decideDock({
     routeLessonId,
     playingLessonId: state.playingLessonId,
     isPlaying: state.playing,
-    hasPlayed: state.hasPlayed,
+    awaitingPlayback: state.awaitingPlayback,
+    isAudioOnly,
     floatMode: state.floatMode,
     floatingDismissed: state.floatingDismissed,
   });
 
   const previous = state.dock;
   state.dock = target;
-  state.floatingSize = decideFloatingSize({
-    isAudioOnly: currentVideo()?.audio_only === true,
-    collapsed: state.collapsed,
+  state.floatingVariant = decideFloatingVariant({
+    onMediaPage: routeLessonId !== null && routeLessonId === state.playingLessonId,
+    isAudioOnly,
+  });
+  state.floatingVisible = decideFloatingVisible({
+    playingLessonId: state.playingLessonId,
+    isPlaying: state.playing,
+    awaitingPlayback: state.awaitingPlayback,
+    floatMode: state.floatMode,
+    floatingDismissed: state.floatingDismissed,
   });
 
   applyPlayerChrome(target);
@@ -411,6 +432,7 @@ async function attemptPlay(): Promise<void> {
       state.autoplayBlocked = false;
     } catch {
       state.autoplayBlocked = true;
+      state.awaitingPlayback = false;
     }
     notify();
   }
@@ -450,13 +472,18 @@ function bindPlayerListeners(): void {
   player.on('play', () => {
     state.playing = true;
     state.started = true;
-    state.hasPlayed = true;
+    state.awaitingPlayback = false;
     notify();
     void applyDock();
   });
   player.on('pause', () => {
     state.playing = false;
     notify();
+    // Pausing hides the custom bar, so the dock has to be recomputed. Deliberately
+    // not in native mode: there, re-docking would call `exitPip()` and pausing from
+    // the browser's own picture-in-picture window would dismiss it — a behaviour
+    // change to the baseline this prototype exists to compare against.
+    if (state.floatMode === 'custom') void applyDock();
   });
 
   // The picture-in-picture window can be closed from its own controls, which
@@ -506,6 +533,7 @@ function advance(_reason: string, { force = false }: { force?: boolean } = {}): 
     // end" never stops. After a genuine `ended` the player is already paused.
     getPlayer().player.pause();
     state.pendingNext = true;
+    state.awaitingPlayback = false;
     notify();
     return;
   }
@@ -513,6 +541,7 @@ function advance(_reason: string, { force = false }: { force?: boolean } = {}): 
   const next = wiring.nextLessonFor(from);
   if (!next) {
     state.courseComplete = true;
+    state.awaitingPlayback = false;
     notify();
     return;
   }
