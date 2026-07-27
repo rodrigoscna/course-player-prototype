@@ -308,6 +308,35 @@ function setLesson(
 }
 
 /**
+ * Reconciles video.js's own chrome with the app's state.
+ *
+ * Two separate switches. `controls` is the headless one: video.js keeps its UI
+ * inline, where it is the best thing available, and gives it up in the floating
+ * container, where our chrome replaces it.
+ *
+ * Picture-in-picture is the other. In custom mode our container is the float
+ * target, and offering the browser's picture-in-picture alongside it would leave
+ * two float mechanisms competing for one element — pop out from the control bar
+ * and the video leaves the container that is supposedly showing it. Setting the
+ * element property is the actual enforcement: it also blocks Chrome's
+ * context-menu route and makes `requestPip` refuse. The class only stops the
+ * control bar advertising a button that would now do nothing, and it has to be
+ * CSS rather than `hide()` because video.js re-shows that button on every
+ * `loadedmetadata` — which is every lesson boundary.
+ */
+function applyPlayerChrome(target: DockTarget): void {
+  const { player, el } = getPlayer();
+
+  const headless = target === 'floating';
+  player.controls(!headless);
+  state.headless = headless;
+
+  const ownsFloating = state.floatMode === 'custom';
+  player.disablePictureInPicture(ownsFloating);
+  el.classList.toggle('float-mode-custom', ownsFloating);
+}
+
+/**
  * Moves the player to wherever the current route and playback state put it.
  * Only the picture-in-picture transitions happen here; the inline and floating
  * cases are a slot claiming the element itself.
@@ -329,12 +358,7 @@ async function applyDock(): Promise<void> {
     collapsed: state.collapsed,
   });
 
-  // Headless is a per-dock decision, not a global setting: video.js keeps its own
-  // controls inline, where they are the best thing available, and gives them up
-  // in the floating container, where our chrome replaces them.
-  const headless = target === 'floating';
-  getPlayer().player.controls(!headless);
-  state.headless = headless;
+  applyPlayerChrome(target);
 
   // The floating path never awaits, so `notify()` below still runs synchronously
   // for it — the slot must be able to claim the element in the same commit that

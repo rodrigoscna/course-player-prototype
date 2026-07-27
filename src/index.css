@@ -271,6 +271,16 @@ h2 {
   width: 100%;
 }
 
+/*
+ * Custom float mode owns the floating player, so video.js's picture-in-picture
+ * button is not offered. `disablePictureInPicture` on the element is what
+ * actually blocks it; this stops it being advertised. Not `hide()`, because
+ * video.js re-shows that control on every `loadedmetadata`.
+ */
+.video-js.float-mode-custom .vjs-picture-in-picture-control {
+  display: none;
+}
+
 .placeholder-frame {
   display: grid;
   place-items: center;
