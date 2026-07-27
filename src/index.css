@@ -1,0 +1,592 @@
+:root {
+  --bg: #101216;
+  --surface: #181b21;
+  --surface-raised: #21252d;
+  --border: #2c313b;
+  --text: #e8eaee;
+  --text-dim: #9aa2b1;
+  --accent: #4c9aff;
+  --accent-dim: #2f5f9e;
+  --good: #45b97c;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 8px;
+
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0 0 var(--space-3);
+}
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 var(--space-2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/*
+ * Parks the player offscreen while no page owns it. Sized like the content
+ * column so video.js's fluid layout does not have to recompute on the way in,
+ * and never display:none, which would let the browser starve rendering.
+ */
+.player-holder {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.app-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ghost-button,
+.primary-button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.primary-button {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.ghost-button:hover,
+.primary-button:hover {
+  border-color: var(--accent);
+}
+
+.app-main {
+  padding: var(--space-5);
+}
+
+.page-narrow {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.lede {
+  color: var(--text-dim);
+  max-width: 60ch;
+}
+
+.meta {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.course-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.course-card {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.course-card p {
+  color: var(--text-dim);
+  margin: var(--space-2) 0 0;
+}
+
+/* Two-column course shell: sidebar persists, outlet swaps. */
+.course-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 860px) {
+  .course-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.course-sidebar {
+  position: sticky;
+  top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.back-link {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.sidebar-title {
+  margin: var(--space-2) 0 var(--space-4);
+}
+
+.toc,
+.toc-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.toc-children {
+  margin-left: var(--space-3);
+  border-left: 1px solid var(--border);
+  padding-left: var(--space-2);
+}
+
+.toc-section {
+  padding: var(--space-3) var(--space-2) var(--space-1);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.toc-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.toc-row:hover {
+  background: var(--surface-raised);
+  text-decoration: none;
+}
+.toc-row.current {
+  background: var(--accent-dim);
+}
+.toc-row.locked {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+.toc-indicator {
+  width: 1.1em;
+  flex: none;
+  color: var(--good);
+}
+.toc-row.locked .toc-indicator,
+.toc-row.current .toc-indicator {
+  color: inherit;
+}
+
+.reset-progress {
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-1);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+/* The frame stays put; only the player element inside it moves between pages. */
+.player-frame {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+}
+
+.player-slot .video-js {
+  width: 100%;
+}
+
+.placeholder-frame {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.lesson-badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius);
+  background: rgb(0 0 0 / 60%);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  pointer-events: none;
+}
+
+.autoplay-blocked {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: var(--space-3);
+  background: rgb(0 0 0 / 70%);
+  text-align: center;
+}
+
+/* Stands in for the player on a lesson you are reading but not watching. */
+.lesson-poster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.poster-play {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: inherit;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+}
+.poster-play:hover {
+  background: var(--accent);
+}
+.poster-play-glyph {
+  font-size: 1.1rem;
+}
+
+/* Keeps a lesson that is playing elsewhere findable. */
+.now-playing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+.now-playing.refused {
+  border-color: var(--border);
+}
+.now-playing-glyph {
+  color: var(--accent);
+}
+.now-playing-text {
+  margin-right: auto;
+  color: var(--text-dim);
+}
+
+.switch select {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 2px var(--space-2);
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lesson-description {
+  color: var(--text-dim);
+  max-width: 65ch;
+}
+
+.lesson-nav {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-4) 0;
+}
+
+.up-next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.up-next.waiting {
+  border-color: var(--accent);
+}
+.up-next.complete {
+  display: block;
+}
+.up-next.complete p {
+  margin: var(--space-2) 0 0;
+  color: var(--text-dim);
+}
+
+.up-next-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.up-next-title {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+/*
+ * The custom floating player. Fixed to the viewport so it survives every route
+ * change, and laid out as a grid so the same markup serves both design states:
+ * the large state stacks stage over chrome, the small state puts them in a row.
+ */
+.floating-player {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 20;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+}
+
+.floating-player.large {
+  grid-template-areas:
+    'stage stage'
+    'body actions';
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 360px;
+}
+
+.floating-player.small {
+  grid-template-areas: 'stage body actions';
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 340px;
+}
+
+.floating-stage {
+  grid-area: stage;
+  position: relative;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px);
+  background: #000;
+}
+.floating-player.small .floating-stage {
+  width: 96px;
+  height: 54px;
+}
+
+/*
+ * Covers the picture for audio-first content without hiding the element: a
+ * display:none video is one the browser may stop decoding altogether.
+ */
+.floating-audio-cover {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-raised);
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.floating-body {
+  grid-area: body;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.floating-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.floating-title,
+.floating-course {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.floating-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.floating-course {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.floating-transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.floating-time {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.floating-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.floating-button {
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.floating-button.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.floating-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.floating-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Our own progress bar, since video.js is drawing nothing in this state. */
+.floating-seek {
+  width: 100%;
+  height: 4px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.floating-player.small .floating-seek {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .floating-player.large,
+  .floating-player.small {
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+  }
+}
+
+.debug-panel {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  font-size: 0.8rem;
+}
+.debug-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  color: var(--text-dim);
+}
+.debug-grid strong {
+  color: var(--text);
+}
+.debug-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.debug-tape {
+  margin: var(--space-2) 0 0;
+  color: var(--text-dim);
+  font-family: ui-monospace, monospace;
+}

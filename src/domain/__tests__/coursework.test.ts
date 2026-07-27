@@ -1,0 +1,112 @@
+import { describe, expect, it } from 'vitest';
+import { courseworkItems } from '../../data/courseworkFixture';
+import { buildTree } from '../buildTree';
+import { flatten } from '../flatten';
+import { nest } from '../nest';
+import { nextVideoLesson, prevVideoLesson, videoLessons } from '../sequence';
+import type { CourseworkItem, NestedCoursework } from '../../types/coursework';
+
+const ids = (items: CourseworkItem[]) => items.map((item) => item.id);
+
+/** Collapses the nested structure to ids so the exact shape can be asserted. */
+const nestedIds = (nested: NestedCoursework): unknown[] =>
+  nested.map((entry) =>
+    Array.isArray(entry) ? nestedIds(entry) : (entry as CourseworkItem).id,
+  );
+
+const treeFor = (spaceId: number) => buildTree(courseworkItems, { spaceId });
+const flatFor = (spaceId: number) => flatten(nest(treeFor(spaceId).roots));
+
+describe('buildTree', () => {
+  it('sorts siblings by position even though the fixture is unordered', () => {
+    const { roots } = treeFor(101);
+    const overview = roots[0];
+
+    expect(roots).toHaveLength(1);
+    expect(overview.item.id).toBe(1001);
+    expect(ids(overview.children.map((child) => child.item))).toEqual([
+      1002, 1003, 1006, 1009,
+    ]);
+  });
+
+  it('excludes hidden items from the tree', () => {
+    const { byId } = treeFor(101);
+    expect(byId.has(1010)).toBe(false);
+  });
+
+  it('includes hidden items when a host asks for them', () => {
+    const { byId } = buildTree(courseworkItems, {
+      spaceId: 101,
+      includeStatuses: ['posted', 'hidden'],
+    });
+    expect(byId.has(1010)).toBe(true);
+  });
+
+  it('keeps courses separate', () => {
+    expect(ids([...treeFor(102).byId.values()]).sort()).toEqual([
+      2001, 2002, 2003, 2004,
+    ]);
+  });
+});
+
+describe('nest', () => {
+  it('produces the production nested structure for a sectioned course', () => {
+    expect(nestedIds(nest(treeFor(101).roots))).toEqual([
+      [1001, [[1002], [1003, [[1004], [1005]]], [1006, [[1007], [1008]]], [1009]]],
+    ]);
+  });
+
+  it('produces a flat nested structure for a course without sections', () => {
+    expect(nestedIds(nest(treeFor(102).roots))).toEqual([
+      [2001, [[2002], [2003], [2004]]],
+    ]);
+  });
+});
+
+describe('flatten', () => {
+  it('gives depth-first order and drops the hidden lesson', () => {
+    expect(ids(flatFor(101))).toEqual([
+      1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009,
+    ]);
+  });
+});
+
+describe('videoLessons', () => {
+  it('keeps only playable lessons, skipping overview, sections and the quiz', () => {
+    expect(ids(videoLessons(flatFor(101)))).toEqual([1002, 1004, 1005, 1007, 1009]);
+  });
+
+  it('never includes the hidden lesson', () => {
+    expect(ids(videoLessons(flatFor(101)))).not.toContain(1010);
+  });
+});
+
+describe('nextVideoLesson', () => {
+  it('steps into a section', () => {
+    expect(nextVideoLesson(flatFor(101), 1002)?.id).toBe(1004);
+  });
+
+  it('steps over a quiz and across a section boundary', () => {
+    expect(nextVideoLesson(flatFor(101), 1007)?.id).toBe(1009);
+  });
+
+  it('returns null at the end of the course rather than crossing into another', () => {
+    expect(nextVideoLesson(flatFor(101), 1009)).toBeNull();
+  });
+
+  it('walks a flat course in order', () => {
+    const flat = flatFor(102);
+    expect(nextVideoLesson(flat, 2002)?.id).toBe(2003);
+    expect(nextVideoLesson(flat, 2004)).toBeNull();
+  });
+});
+
+describe('prevVideoLesson', () => {
+  it('steps backwards over the quiz and section boundary', () => {
+    expect(prevVideoLesson(flatFor(101), 1009)?.id).toBe(1007);
+  });
+
+  it('returns null at the start of the course', () => {
+    expect(prevVideoLesson(flatFor(101), 1002)).toBeNull();
+  });
+});
