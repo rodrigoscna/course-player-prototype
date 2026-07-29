@@ -49,7 +49,7 @@ describe('buildTree', () => {
 
   it('keeps courses separate', () => {
     expect(ids([...treeFor(102).byId.values()]).sort()).toEqual([
-      2001, 2002, 2003, 2004,
+      2001, 2002, 2003, 2004, 2005,
     ]);
   });
 });
@@ -63,7 +63,7 @@ describe('nest', () => {
 
   it('produces a flat nested structure for a course without sections', () => {
     expect(nestedIds(nest(treeFor(102).roots))).toEqual([
-      [2001, [[2002], [2003], [2004]]],
+      [2001, [[2002], [2003], [2004], [2005]]],
     ]);
   });
 });
@@ -102,7 +102,10 @@ describe('nextVideoLesson', () => {
   it('walks a flat course in order', () => {
     const flat = flatFor(102);
     expect(nextVideoLesson(flat, 2002)?.id).toBe(2003);
-    expect(nextVideoLesson(flat, 2004)).toBeNull();
+    // The chain makes no distinction for the YouTube-hosted lesson: it is simply
+    // the next playable item. Hosting is the player's problem, not the domain's.
+    expect(nextVideoLesson(flat, 2004)?.id).toBe(2005);
+    expect(nextVideoLesson(flat, 2005)).toBeNull();
   });
 });
 

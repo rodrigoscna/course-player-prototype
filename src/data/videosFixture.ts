@@ -91,6 +91,18 @@ export const videos: Record<number, VideoRecord> = {
     duration_seconds: 52,
     demo_end_at_seconds: 9,
   },
+  // A YouTube-hosted lesson. `video/youtube` routes the same `player.src()` call
+  // through the videojs-youtube tech, which swaps the player's inner element for
+  // an iframe — the tech-switch boundary (MP4 → YouTube) is exactly what this
+  // entry exists to exercise. The HTTP-206 checklist above does not apply here;
+  // what matters instead is that the video allows embedding.
+  9010: {
+    id: 9010,
+    url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+    type: 'video/youtube',
+    duration_seconds: 19,
+    demo_end_at_seconds: 9,
+  },
 };
 
 export const videoById = (id: number | null | undefined): VideoRecord | null =>

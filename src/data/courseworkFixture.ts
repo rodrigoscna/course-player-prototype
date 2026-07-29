@@ -252,4 +252,22 @@ export const courseworkItems: CourseworkItem[] = [
     unlocking_criteria: 'none',
     trigger_complete_video_id: 9007,
   },
+  {
+    // YouTube-hosted, so the walk from Study Three into this lesson crosses an
+    // HTML5 → YouTube tech switch inside the one player instance.
+    id: 2005,
+    space_id: 102,
+    parent_id: 2001,
+    position: 3,
+    prompt_type: 'course_lesson',
+    status: 'posted',
+    title: 'Study Four: Origins',
+    description: 'Ten(ish) seconds of the first video ever uploaded to YouTube.',
+    slug: 'study-four-origins',
+    image_url: '',
+    is_video: true,
+    completion_criteria: 'video',
+    unlocking_criteria: 'none',
+    trigger_complete_video_id: 9010,
+  },
 ];

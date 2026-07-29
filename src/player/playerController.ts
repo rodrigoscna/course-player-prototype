@@ -9,6 +9,7 @@ import {
   type FloatingVariant,
   type FloatMode,
 } from './dockPolicy';
+import type Player from 'video.js/dist/types/player';
 import { navigateTo } from './navigation';
 import { exitPip, isAnyPipActive, requestPip } from './pictureInPicture';
 import { getPlayer } from './playerSingleton';
@@ -138,6 +139,28 @@ export const controller = {
 
   setOwner(next: Element | null): void {
     owner = next;
+  },
+
+  /**
+   * Called by a slot after it physically moves the player element to a new
+   * parent. A no-op for the HTML5 tech, which survives reparenting untouched.
+   *
+   * An iframe tech does not: moving an iframe in the DOM reloads its document.
+   * The YouTube embed restarts from zero and, worse, keeps playing while
+   * ignoring every command — the plugin's handle points into the pre-reload
+   * context, so pause/seek/mute all silently die. The only way back to a
+   * controllable player is to deliberately re-set the source, which rebuilds
+   * the tech's handle, and then restore where playback was.
+   */
+  notifyElementReparented(): void {
+    // A dock change can move the element twice in one commit (park to the
+    // holder, claim into the new slot). Only the final resting place should
+    // trigger a rebind, so defer a tick and let the newest call win.
+    const token = ++reparentToken;
+    queueMicrotask(() => {
+      if (token !== reparentToken) return;
+      rebindIframeTech();
+    });
   },
 
   setAutoplayNext(enabled: boolean): void {
@@ -311,6 +334,27 @@ function setLesson(
     if (resume > 1) player.currentTime(resume);
   });
 
+  // The YouTube embed re-applies its own cookie-remembered watch position as a
+  // late seek after playback starts, overriding wherever this app put the
+  // playhead. This store is the only authority on where a lesson begins, so
+  // for a grace window after the source is set, any position far from the
+  // expected one is snapped back. It also snaps a manual scrub made within the
+  // window — a tolerable demo-grade trade. The HTML5 tech starts where it is
+  // told and never trips this.
+  const expected = resume > 1 ? resume : 0;
+  const graceEndsAt = Date.now() + 4000;
+  const enforceStart = () => {
+    if (Date.now() > graceEndsAt) {
+      player.off('seeked', enforceStart);
+      return;
+    }
+    const actual = player.currentTime() ?? 0;
+    if (Math.abs(actual - expected) > 2.5) player.currentTime(expected);
+  };
+  player.one('playing', enforceStart);
+  player.on('seeked', enforceStart);
+  window.setTimeout(() => player.off('seeked', enforceStart), 4500);
+
   wiring?.onLessonStarted(lesson.id);
   void applyDock();
   notify();
@@ -410,16 +454,114 @@ function currentVideo(): VideoRecord | null {
   return wiring.videoFor(playingLesson);
 }
 
+let reparentToken = 0;
+
+/**
+ * True while a tech rebuild is expected to fire a `play` this app never asked
+ * for — videojs-youtube's init hardcodes autoplay (`setSrc(source, true)`).
+ * Without this guard the rogue play re-opens the floating card that pausing
+ * just closed: pause hides → hide parks → park rebuilds → rebuild autoplays →
+ * playing shows the card again, forever.
+ */
+let roguePlayGuard = false;
+let roguePlayGuardTimer: number | null = null;
+
+function armRoguePlayGuard(): void {
+  roguePlayGuard = true;
+  if (roguePlayGuardTimer !== null) window.clearTimeout(roguePlayGuardTimer);
+  roguePlayGuardTimer = window.setTimeout(() => {
+    roguePlayGuard = false;
+  }, 4000);
+}
+
+function disarmRoguePlayGuard(): void {
+  roguePlayGuard = false;
+  if (roguePlayGuardTimer !== null) {
+    window.clearTimeout(roguePlayGuardTimer);
+    roguePlayGuardTimer = null;
+  }
+}
+
+/**
+ * Recover a controllable player after an iframe tech was moved in the DOM.
+ *
+ * Re-setting the same source tears the zombie embed down and builds a fresh
+ * one whose handle actually works; position, mute and play state are restored
+ * from this controller's own snapshot, which is trustworthy precisely because
+ * the dead embed stopped reporting the moment it reloaded.
+ */
+function rebindIframeTech(): void {
+  const { player } = getPlayer();
+  if ((player as unknown as { techName_?: string }).techName_ !== 'Youtube') return;
+  const video = currentVideo();
+  if (!video || state.playingLessonId === null) return;
+
+  const resumeAt = state.positionSeconds;
+  const wasMuted = state.muted || player.muted();
+  const shouldPlay = state.playing || state.awaitingPlayback;
+
+  // Keeps the floating card mounted through the reload — the tech flaps
+  // paused/loading states that would otherwise hide it mid-rebind.
+  state.awaitingPlayback = shouldPlay;
+  notify();
+
+  // The rebuilt tech autoplays whether asked to or not; only let that stand
+  // when playback was actually running before the move.
+  if (shouldPlay) disarmRoguePlayGuard();
+  else armRoguePlayGuard();
+
+  // `player.src()` is not enough here: with the type unchanged it routes into
+  // the EXISTING tech instance, whose setSrc talks to the dead handle
+  // (Youtube.js#setSrc → ytPlayer.cueVideoById → the pre-reload context).
+  // `loadTech_` — private API, tolerable in a prototype — unloads the zombie
+  // tech entirely and constructs a fresh one with a live handle.
+  (player as unknown as {
+    loadTech_: (techName: string, source: { src: string; type: string }) => void;
+  }).loadTech_('Youtube', { src: video.url, type: video.type });
+
+  player.one('loadedmetadata', () => {
+    if (wasMuted) player.muted(true);
+    if (resumeAt > 0.25) player.currentTime(resumeAt);
+  });
+  if (shouldPlay) void attemptPlay();
+}
+
 /** The end our own progress bar should measure against, demo window included. */
 function effectiveDuration(): number {
   const end = effectiveEnd(getPlayer().player.duration());
   return Number.isFinite(end) ? end : 0;
 }
 
+/**
+ * Whether playback has genuinely begun, checked by event rather than promise.
+ *
+ * A resolved `play()` is only proof of playback for the HTML5 tech. The YouTube
+ * tech's `play()` returns immediately and the embed can refuse autoplay
+ * silently — nothing rejects, nothing plays. The `playing` event is the one
+ * signal every tech shares. The timeout errs long because a first YouTube load
+ * also has to fetch the iframe API; a false "refused" only costs a muted retry.
+ */
+function playbackBegan(player: Player, timeoutMs = 2000): Promise<boolean> {
+  if (!player.paused()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const settle = (began: boolean) => {
+      player.off('playing', onPlaying);
+      window.clearTimeout(timer);
+      resolve(began);
+    };
+    const onPlaying = () => settle(true);
+    const timer = window.setTimeout(() => settle(!player.paused()), timeoutMs);
+    player.on('playing', onPlaying);
+  });
+}
+
 async function attemptPlay(): Promise<void> {
   const { player } = getPlayer();
+  // Every path through here is a play someone actually asked for.
+  disarmRoguePlayGuard();
   try {
     await player.play();
+    if (!(await playbackBegan(player))) throw new Error('refused without rejecting');
     state.autoplayBlocked = false;
     notify();
   } catch {
@@ -429,6 +571,7 @@ async function attemptPlay(): Promise<void> {
       player.muted(true);
       state.muted = true;
       await player.play();
+      if (!(await playbackBegan(player))) throw new Error('refused without rejecting');
       state.autoplayBlocked = false;
     } catch {
       state.autoplayBlocked = true;
@@ -444,7 +587,17 @@ function bindPlayerListeners(): void {
 
   const { player } = getPlayer();
 
-  player.on('ended', () => advance('ended'));
+  player.on('ended', () => {
+    // The HTML5 tech fires `pause` before `ended`, so the pause handler had
+    // already cleared `playing`. The YouTube tech fires `ended` alone — without
+    // this, the state machine still believes it is playing and the floating
+    // player survives its own video's end, showing a Pause button over a dead
+    // embed. Same rule as pausing: re-dock only in custom mode.
+    state.playing = false;
+    notify();
+    if (state.floatMode === 'custom') void applyDock();
+    advance('ended');
+  });
 
   player.on('loadedmetadata', () => {
     state.durationSeconds = effectiveDuration();
@@ -452,6 +605,13 @@ function bindPlayerListeners(): void {
   });
 
   player.on('timeupdate', () => {
+    // Mid-advance, `playingLessonId` already names the NEXT lesson while the
+    // dying source can still fire a final timeupdate — the slower the tech
+    // swap, the wider the window (an HTML5→YouTube switch loads the iframe API,
+    // where MP4→MP4 masked this entirely). Saving that tick would file the old
+    // clip's end position under the new lesson's key, so the new lesson then
+    // "resumes" at the old clip's timestamp instead of starting at zero.
+    if (advancing) return;
     const seconds = player.currentTime() ?? 0;
     const lessonId = state.playingLessonId;
     const videoId = state.currentVideoId;
@@ -470,6 +630,12 @@ function bindPlayerListeners(): void {
   });
 
   player.on('play', () => {
+    // A play nobody asked for, from a tech rebuild — cancel it before it
+    // reaches the state machine, or it reopens the card that pausing closed.
+    if (roguePlayGuard) {
+      player.pause();
+      return;
+    }
     state.playing = true;
     state.started = true;
     state.awaitingPlayback = false;

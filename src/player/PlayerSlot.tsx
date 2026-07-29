@@ -33,7 +33,11 @@ export function PlayerSlot({ dock }: { dock: DockTarget }) {
     const { el, holder } = getPlayer();
     // appendChild of an already-parented node moves it in one synchronous
     // operation, so the element is never briefly detached.
-    if (el.parentElement !== slot) slot.appendChild(el);
+    if (el.parentElement !== slot) {
+      slot.appendChild(el);
+      // Iframe techs do not survive the move — see notifyElementReparented.
+      controller.notifyElementReparented();
+    }
     controller.setOwner(slot);
 
     return () => {
@@ -41,6 +45,7 @@ export function PlayerSlot({ dock }: { dock: DockTarget }) {
       if (controller.owner !== slot) return;
       holder.appendChild(el);
       controller.setOwner(holder);
+      controller.notifyElementReparented();
       // Never dispose here — the player outlives every page.
     };
   }, [activeDock, dock]);

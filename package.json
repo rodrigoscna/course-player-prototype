@@ -15,7 +15,8 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^6.30.4",
-    "video.js": "^8.23.9"
+    "video.js": "^8.23.9",
+    "videojs-youtube": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",

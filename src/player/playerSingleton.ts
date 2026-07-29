@@ -1,4 +1,10 @@
 import videojs from 'video.js';
+// Registers the `Youtube` tech on the videojs global as a side effect. YouTube
+// lessons play through the SAME player instance as MP4 lessons — video.js swaps
+// the inner tech element (<video> ↔ <iframe>) inside the wrapper, and the
+// wrapper is what this app moves between slots, so the continuity architecture
+// is indifferent to where a lesson's media is hosted.
+import 'videojs-youtube';
 import type Player from 'video.js/dist/types/player';
 
 export interface PlayerInstance {
@@ -50,6 +56,12 @@ export function getPlayer(): PlayerInstance {
     fluid: true,
     preload: 'auto',
     autoplay: false,
+    // html5 first so MP4 lessons keep the native element; the youtube tech only
+    // engages for `video/youtube` sources.
+    techOrder: ['html5', 'youtube'],
+    // video.js draws the controls; YouTube's own chrome would fight both the
+    // inline control bar and the floating card's headless mode.
+    youtube: { ytControls: 0, playsinline: 1, rel: 0 },
   });
 
   createCount += 1;

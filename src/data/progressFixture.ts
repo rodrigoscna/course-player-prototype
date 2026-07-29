@@ -21,7 +21,7 @@ export const progressBySpaceId: Record<number, ProgressPayload> = {
   102: {
     lesson_progress: {},
     // Nothing is gated in this course, so everything is unlocked.
-    unlocked_lesson_ids: [2001, 2002, 2003, 2004],
+    unlocked_lesson_ids: [2001, 2002, 2003, 2004, 2005],
     current: 2002,
     next_coursework_id: 2003,
   },
